@@ -16,7 +16,7 @@ const Login = () => {
     e.preventDefault();
     setError('');
     login(emailRef.current.value, passwordRef.current.value)
-      .then(() => navigate('/dashboard'))
+      .then(() => navigate('/'))
       .catch((error) => {
         console.error("Error logging in:", error);
         setError("Invalid email or password. Please try again.");
@@ -26,7 +26,7 @@ const Login = () => {
   const handleGoogleSignIn = () => {
     setError('');
     googleSignIn()
-      .then(() => navigate('/dashboard'))
+      .then(() => navigate('/'))
       .catch((error) => {
         console.error("Error with Google sign-in:", error);
         setError("Google sign-in failed. Please try again.");

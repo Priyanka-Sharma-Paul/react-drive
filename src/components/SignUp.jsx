@@ -49,7 +49,7 @@ const SignUp = () => {
         }
       })
       .then(() => {
-        navigate('/dashboard');
+        navigate('/');
       })
       .catch((error) => {
         console.error("Error signing up:", error);

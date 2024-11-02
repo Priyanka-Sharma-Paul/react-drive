@@ -1,17 +1,15 @@
 // src/components/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { storage, db } from '../firebase/firebase';
-import { ref, uploadBytes, listAll, getDownloadURL } from 'firebase/storage';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { storage } from '../firebase/firebase';
+import { ref, uploadBytes, listAll, getDownloadURL, getMetadata, updateMetadata } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
-  const { user , logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [fileList, setFileList] = useState([]);
-  const [starredFiles, setStarredFiles] = useState([]);
 
   const handleLogout = async () => {
     await logout();
@@ -20,10 +18,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchStarredFiles(); // Fetch starred files once when user changes
-      fetchUserFiles(); // Fetch user files once when user changes
+      fetchUserFiles(); // Fetch user files when user is present
     }
-  }, [user]); // Only runs when `user` changes
+  }, [user]);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -32,7 +29,8 @@ const Dashboard = () => {
   const handleUpload = async () => {
     if (file && user) {
       const fileRef = ref(storage, `files/${user.uid}/${file.name}`);
-      await uploadBytes(fileRef, file); // Await for upload to finish
+      await uploadBytes(fileRef, file);
+      await updateMetadata(fileRef, { customMetadata: { starred: 'false' } });
       console.log("File uploaded successfully!");
       setFile(null);
       await fetchUserFiles(); // Refresh file list after upload
@@ -46,55 +44,34 @@ const Dashboard = () => {
       const files = await Promise.all(
         res.items.map(async (item) => {
           const url = await getDownloadURL(item);
-          return { name: item.name, url, starred: starredFiles.includes(item.name) }; // Check if file is starred
+          const metadata = await getMetadata(item);
+          const isStarred = metadata.customMetadata?.starred === 'true';
+          const lastModified = metadata.updated || metadata.timeCreated;
+          return { name: item.name, url, starred: isStarred, lastModified };
         })
       );
-      console.log(files);
+
+      // Sort files by last modified date (descending order)
+      files.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
       setFileList(files);
     }
   };
 
-  const fetchStarredFiles = async () => {
-    const docRef = doc(db, "starredFiles", user.uid);
-    const docSnap = await getDoc(docRef);
-    console.log(docSnap);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      console.log(data.files)
-      setStarredFiles(data.files || []);
-    } else {
-      console.log("No starred files found");
-      setStarredFiles([]); // Reset starred files if none found
-    }
-  };
+  const toggleStar = async (fileName) => {
+    const fileRef = ref(storage, `files/${user.uid}/${fileName}`);
+    const metadata = await getMetadata(fileRef);
+    const isCurrentlyStarred = metadata.customMetadata?.starred === 'true';
+    const newStarredStatus = !isCurrentlyStarred;
 
-  const updateStarredFiles = async () => {
-    const docRef = doc(db, "starredFiles", user.uid);
-    console.log(docRef);
-    await setDoc(docRef, { files: starredFiles }, { merge: true });
-  };
+    // Update custom metadata with new starred status
+    await updateMetadata(fileRef, { customMetadata: { starred: newStarredStatus.toString() } });
 
-  const toggleStar = (fileName) => {
-    setFileList((prevFiles) => {
-      return prevFiles.map((file) => {
-        if (file.name === fileName) {
-          return { ...file, starred: !file.starred }; // Toggle starred state
-        }
-        return file;
-      });
-    });
-
-    setStarredFiles((prevStarred) => {
-      const isAlreadyStarred = prevStarred.includes(fileName);
-      const updatedStarred = isAlreadyStarred 
-        ? prevStarred.filter((name) => name !== fileName) // Unstar
-        : [...prevStarred, fileName]; // Star
-
-      // Update Firestore with new starred files
-      updateStarredFiles(updatedStarred);
-      return updatedStarred;
-    });
+    // Update state to reflect the new starred status
+    setFileList((prevFiles) =>
+      prevFiles.map((file) =>
+        file.name === fileName ? { ...file, starred: newStarredStatus } : file
+      )
+    );
   };
 
   return (
@@ -120,7 +97,7 @@ const Dashboard = () => {
         <ul>
           {fileList.map((file, index) => (
             <li key={index}>
-              <span 
+              <span
                 style={{ cursor: 'pointer', color: file.starred ? 'gold' : 'black' }}
                 onClick={() => toggleStar(file.name)}
               >
@@ -137,7 +114,7 @@ const Dashboard = () => {
       <div className="starred-files">
         <h3>Starred Files</h3>
         <ul>
-          {fileList.filter(file => file.starred).map((file, index) => (
+          {fileList.filter((file) => file.starred).map((file, index) => (
             <li key={index}>
               <a href={file.url} target="_blank" rel="noopener noreferrer">
                 {file.name}
