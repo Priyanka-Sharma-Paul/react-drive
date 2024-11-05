@@ -8,6 +8,7 @@ const App = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeOption, setActiveOption] = useState("My Drive");
     const [theme, setTheme] = useState("light"); 
+    const [updateFiles, setUpdateFIles] = useState(0);
   
     const toggleTheme = (selectedTheme) => {
       setTheme(selectedTheme);
@@ -22,8 +23,8 @@ const App = () => {
             toggleTheme={toggleTheme}
         />
         <div className={`App ${theme} flex h-screen`}>
-            <Sidebar setActiveOption={setActiveOption} />
-            <Data searchTerm={searchTerm} activeOption={activeOption} />
+            <Sidebar setActiveOption={setActiveOption} setUpdateFIles={setUpdateFIles}/>
+            <Data searchTerm={searchTerm} activeOption={activeOption} updateFiles={updateFiles}/>
         </div>
     </>
   );

@@ -8,7 +8,7 @@ import {
 import { ref, uploadBytes , updateMetadata} from "firebase/storage";
 import { storage } from "../firebase/firebase";
 
-function Sidebar({ setActiveOption }) {
+function Sidebar({ setActiveOption , setUpdateFIles}) {
     const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -38,7 +38,8 @@ function Sidebar({ setActiveOption }) {
         await updateMetadata(fileRef, { customMetadata: { starred: 'false' , deleted: 'false'} });
       setUploading(false);
       setFile(null);
-      setOpen(false);
+      setOpen(false)
+      setUpdateFIles(new Date());
     } catch (error) {
       console.error("Error uploading file:", error);
       setUploading(false);

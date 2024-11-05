@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from '../context/AuthContext';
-import { IoMdArrowDropdown } from "react-icons/io";
 import {
   FaList,
   FaTrash,
@@ -11,40 +10,44 @@ import {
 import { MdInfoOutline } from "react-icons/md";
 import { IoArrowDownSharp, IoStar, IoStarOutline } from "react-icons/io5";
 import { storage } from "../firebase/firebase";
-import { ref, uploadBytes, listAll, getDownloadURL, getMetadata, updateMetadata } from 'firebase/storage';
+import { ref, uploadBytes, listAll, getDownloadURL, getMetadata, updateMetadata, deleteObject } from 'firebase/storage';
 import { SlOptions } from "react-icons/sl";
 import { BiSolidFilePdf } from "react-icons/bi";
 
-function Data({ searchTerm, activeOption }) {
+function Data({ searchTerm, activeOption, updateFiles }) {
     const { user } = useAuth();
     const [files, setFiles] = useState([]);
     const [showOptions, setShowOptions] = useState(null);
     const optionsMenuRef = useRef(null);
+    const [loading, setLoading] = useState(true);
+
+    const fetchFiles = async () => {
+        setLoading(true);
+        const listRef = ref(storage, `files/${user.uid}/`);
+        const res = await listAll(listRef);
+        const files = await Promise.all(
+            res.items.map(async (item) => {
+                const url = await getDownloadURL(item);
+                const metadata = await getMetadata(item);
+                const lastModified = metadata.updated || metadata.timeCreated;
+                return {
+                    timestamp: new Date(lastModified),
+                    filename: item.name,
+                    fileURL: url,
+                    size: metadata.size,
+                    isDeleted: metadata.customMetadata?.deleted === 'true',
+                    isStarred: metadata.customMetadata?.starred === 'true',
+                    id: item.fullPath,
+                };
+            })
+        );
+        setFiles(files);
+        setLoading(false);
+    };
 
     useEffect(() => {
-        const fetchFiles = async () => {
-            const listRef = ref(storage, `files/${user.uid}/`);
-            const res = await listAll(listRef);
-            const files = await Promise.all(
-                res.items.map(async (item) => {
-                    const url = await getDownloadURL(item);
-                    const metadata = await getMetadata(item);
-                    const lastModified = metadata.updated || metadata.timeCreated;
-                    return {
-                        timestamp: new Date(lastModified),
-                        filename: item.name,
-                        fileURL: url,
-                        size: metadata.size,
-                        isDeleted: metadata.customMetadata?.deleted === 'true',
-                        isStarred: metadata.customMetadata?.starred === 'true',
-                        id: item.fullPath,
-                    };
-                })
-            );
-            setFiles(files);
-        };
         fetchFiles();
-    }, [user]);
+    }, [ user, updateFiles]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -148,25 +151,16 @@ function Data({ searchTerm, activeOption }) {
     };
 
     return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center text-lg font-bold">
-                    <p>{activeOption}</p>
-                    <IoMdArrowDropdown />
-                </div>
-                <div className="flex items-center space-x-4 text-xl">
-                    <FaList />
-                    <MdInfoOutline />
-                </div>
+        loading ? (
+            <div className="flex justify-center items-center h-64">
+                <p>Loading files...</p>
             </div>
-            <div>
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                    {filteredFiles.map((file) => (
-                        <div className="flex flex-col items-center" key={file.id}>
-                            <BiSolidFilePdf className="text-5xl" />
-                            <p className="mt-2">{file.filename}</p>
-                        </div>
-                    ))}
+        ) : (
+            <div className="p-4">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center text-lg font-bold">
+                        <p>{activeOption}</p>
+                    </div>
                 </div>
                 <div>
                     <div className="grid grid-cols-5 text-sm font-bold bg-gray-100 p-2 rounded">
@@ -237,7 +231,7 @@ function Data({ searchTerm, activeOption }) {
                     ))}
                 </div>
             </div>
-        </div>
+        )
     );
 }
 
